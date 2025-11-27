@@ -6,25 +6,51 @@ import (
 
 type handlerFunc func(c *Context)
 type Engine struct {
-	router *router
+	*RouterGroup
+
+	groups []*RouterGroup
 }
 
 func New() *Engine {
-	return &Engine{router: newRouter()}
-}
-func (engine *Engine) addRoute(method string, pattern string, handler handlerFunc) {
-	engine.router.addRoute(method, pattern, handler)
-}
-func (engine *Engine) POST(path string, handle handlerFunc) {
-	engine.addRoute("POST", path, handle)
-}
-func (engine *Engine) GET(path string, handle handlerFunc) {
-	engine.addRoute("GET", path, handle)
+	engine := &Engine{}
+	router := newRouter()
+	engine.RouterGroup = &RouterGroup{engine: engine, router: router}
+	engine.groups = []*RouterGroup{engine.RouterGroup}
+	return engine
 }
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c := newContext(w, req)
-	engine.router.handle(c)
+	engine.RouterGroup.router.handle(c)
 }
 func (engine *Engine) Run(address string) error {
 	return http.ListenAndServe(address, engine)
+}
+
+type RouterGroup struct {
+	*router
+	prefix     string
+	middleWare []handlerFunc
+	engine     *Engine
+}
+
+func (r *RouterGroup) Group(prefix string) *RouterGroup {
+	pre := r.prefix + prefix
+	newGroup := &RouterGroup{
+		prefix: pre,
+		engine: r.engine,
+		router: r.router,
+	}
+	r.engine.groups = append(r.engine.groups, newGroup)
+	return newGroup
+}
+func (r *RouterGroup) addRoute(method string, path string, handler handlerFunc) {
+	engine := r.engine
+	p := r.prefix + path
+	engine.router.addRoute(method, p, handler)
+}
+func (r *RouterGroup) GET(path string, handle handlerFunc) {
+	r.addRoute("GET", path, handle)
+}
+func (r *RouterGroup) POST(path string, handle handlerFunc) {
+	r.addRoute("POST", path, handle)
 }
