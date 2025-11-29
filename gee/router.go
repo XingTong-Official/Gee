@@ -20,7 +20,7 @@ func newRouter() *router {
 // 解析路径，构成可用节点数组
 func parsePattern(pattern string) []string {
 	vs := strings.Split(pattern, "/")
-	answer := []string{}
+	var answer []string
 	for _, s := range vs {
 		if s != "" {
 			answer = append(answer, s)
@@ -77,5 +77,7 @@ func (r *router) handle(c *Context) {
 	}
 	c.Params = params
 	key := c.Method + "-" + n.pattern
-	r.handlers[key](c)
+	f := r.handlers[key]
+	c.middleWares = append(c.middleWares, f)
+	c.Next()
 }

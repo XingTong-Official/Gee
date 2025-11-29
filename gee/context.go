@@ -8,12 +8,16 @@ import (
 
 type H map[string]interface{}
 type Context struct {
-	Writer http.ResponseWriter
-	Req    *http.Request
-	Path   string
-	Method string
-	Code   int
-	Params map[string]string
+	Writer      http.ResponseWriter
+	Req         *http.Request
+	Path        string
+	Method      string
+	Code        int
+	StatusCode  int
+	Params      map[string]string
+	index       int
+	middleWares []handlerFunc
+	engine      *Engine
 }
 
 func newContext(w http.ResponseWriter, req *http.Request) *Context {
@@ -22,6 +26,7 @@ func newContext(w http.ResponseWriter, req *http.Request) *Context {
 		Req:    req,
 		Path:   req.URL.Path,
 		Method: req.Method,
+		index:  -1,
 	}
 }
 func (c *Context) Param(key string) string {
@@ -53,13 +58,27 @@ func (c *Context) String(code int, format string, values ...interface{}) {
 	c.SetCode(code)
 	c.Writer.Write([]byte(fmt.Sprintf(format, values...)))
 }
-func (c *Context) HTML(code int, s string) {
+func (c *Context) Fail(code int, err string) {
+	c.SetCode(code)
+	c.JSON(code, H{"message": err})
+}
+func (c *Context) HTML(code int, name string, data interface{}) {
 	c.SetHeader("Content-Type", "text/html")
 	c.SetCode(code)
-	c.Writer.Write([]byte(s))
+	if err := c.engine.htmlTemplates.ExecuteTemplate(c.Writer, name, data); err != nil {
+		c.Fail(500, err.Error())
+	}
 }
 func (c *Context) Data(code int, content string, data []byte) {
 	c.SetHeader("Content-Type", content)
 	c.SetCode(code)
 	c.Writer.Write(data)
+}
+
+func (c *Context) Next() {
+	c.index++
+	length := len(c.middleWares)
+	for ; c.index < length; c.index++ {
+		c.middleWares[c.index](c)
+	}
 }
