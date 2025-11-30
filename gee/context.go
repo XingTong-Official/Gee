@@ -16,7 +16,7 @@ type Context struct {
 	StatusCode  int
 	Params      map[string]string
 	index       int
-	middleWares []handlerFunc
+	middleWares []HandlerFunc
 	engine      *Engine
 }
 
